@@ -14,8 +14,6 @@ use maturin::{
     develop, get_pyproject_toml, source_distribution, write_dist_info, BridgeModel, BuildOptions,
     CargoToml, Metadata21, PathWriter, PythonInterpreter, Target,
 };
-#[cfg(feature = "log")]
-use pretty_env_logger;
 use std::path::PathBuf;
 use std::{env, fs};
 use structopt::StructOpt;
@@ -441,9 +439,11 @@ fn run() -> Result<(), Error> {
             release,
             strip,
         } => {
-            let venv_dir = match env::var_os("VIRTUAL_ENV").xor(env::var_os("CONDA_PREFIX")) {
-                Some(dir) => PathBuf::from(dir),
-                None => {
+            let venv_dir = match (env::var_os("VIRTUAL_ENV"),env::var_os("CONDA_PREFIX")) {
+                (Some(dir), None) => PathBuf::from(dir),
+                (None, Some(dir)) => PathBuf::from(dir),
+                (Some(_), Some(_)) => bail!("Both VIRTUAL_ENV and CONDA_PREFIX are set. Please unset one of them"),
+                (None, None) => {
                     bail!("You need to be inside a virtualenv or conda environment to use develop (neither VIRTUAL_ENV nor CONDA_PREFIX are set)")
                 }
             };
@@ -472,7 +472,7 @@ fn run() -> Result<(), Error> {
             let cargo_metadata = MetadataCommand::new()
                 .manifest_path(&manifest_path)
                 .exec()
-                .context("Cargo metadata failed")?;
+                .context("Cargo metadata failed. Do you have cargo in your PATH?")?;
 
             let wheel_dir = match out {
                 Some(ref dir) => dir.clone(),

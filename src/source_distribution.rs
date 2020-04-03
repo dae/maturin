@@ -1,10 +1,36 @@
 use crate::module_writer::ModuleWriter;
 use crate::{Metadata21, SDistWriter};
+use cargo_metadata::Metadata;
 use failure::{bail, format_err, Error, ResultExt};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{fs, str};
+
+/// Checks if there a local/path dependencies which might not be included
+/// when building the source distribution.
+pub fn warn_on_local_deps(cargo_metadata: &Metadata) {
+    let root_package = cargo_metadata
+        .resolve
+        .clone()
+        .and_then(|y| y.root)
+        .expect("Expected a resolve with a root");
+
+    let local_deps: Vec<String> = cargo_metadata
+        .packages
+        .iter()
+        .filter(|x| x.source.is_none())
+        // Remove the package itself
+        .filter(|x| x.id != root_package)
+        .map(|x| x.name.clone())
+        .collect();
+    if !local_deps.is_empty() {
+        eprintln!(
+            "⚠ The are local dependencies, which the source distribution might not include: {}",
+            local_deps.join(", ")
+        );
+    }
+}
 
 /// Creates a source distribution
 ///
@@ -45,6 +71,7 @@ pub fn source_distribution(
             let relative_to_cwd = manifest_dir.join(relative_to_manifests);
             (relative_to_manifests.to_path_buf(), relative_to_cwd)
         })
+        .filter(|(target, _)| target != Path::new("Cargo.toml.orig"))
         .collect();
 
     if !target_source

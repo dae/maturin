@@ -1,0 +1,22 @@
+# This configuration is not great but it suffices to publish wheels for maturin for 64-bit arm (aarch64)
+
+kind: pipeline
+type: docker
+name: linux_aarch64
+platform:
+  arch: arm64
+
+steps:
+- name: publish
+  image: python:3.8-buster
+  environment:
+    PATH: "/root/.local/bin:/root/.cargo/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    MATURIN_PASSWORD:
+      from_secret: MATURIN_PASSWORD
+  commands:
+    - curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain nightly --profile minimal -y
+    - cargo build --release
+    - cargo run --release -- publish -b bin -u konstin --no-sdist --manylinux 2014 --interpreter python3.8
+  when:
+    event:
+      - tag
